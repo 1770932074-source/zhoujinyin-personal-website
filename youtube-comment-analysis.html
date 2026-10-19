@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube 评论爬虫与 NLP 分析 — 作品集</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FF0000'/%3E%3Cpath d='M26 20 L46 32 L26 44 Z' fill='white'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if (typeof echarts === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>');</script>
+<link rel="preconnect" href="https://miaoda.feishu.cn">
+<link href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0D1117;
+    --surface: #161B22;
+    --surface-hover: #1C2129;
+    --border: #30363D;
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --accent: #FF0000;
+    --accent-dim: rgba(255, 0, 0, 0.1);
+    --positive: #3FB950;
+    --neutral: #D29922;
+    --negative: #F85149;
+    --blue: #58A6FF;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.8;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ===== Hero ===== */
+  .hero {
+    padding: 80px 0 56px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-tag {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 6px 14px;
+    border-radius: 100px;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin-bottom: 32px;
+  }
+
+  .video-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--blue);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    transition: border-color 0.2s;
+  }
+
+  .video-link:hover {
+    border-color: var(--blue);
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 32px;
+  }
+
+  .tag {
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    background: var(--surface);
+  }
+
+  /* ===== Stats ===== */
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 40px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Sections ===== */
+  section {
+    padding: 64px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-number {
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+
+  p {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  p strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  /* ===== Chart Image ===== */
+  .chart-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-top: 24px;
+  }
+
+  .chart-frame img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .chart-caption {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 16px;
+  }
+
+  /* ===== ECharts ===== */
+  #sentimentChart {
+    width: 100%;
+    height: 320px;
+  }
+
+  /* ===== Insight Cards ===== */
+  .insight-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .insight-card h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+  }
+
+  .insight-card p {
+    font-size: 14px;
+    margin-bottom: 0;
+  }
+
+  /* ===== Footer ===== */
+  footer {
+    padding: 40px 0;
+    text-align: center;
+  }
+
+  footer p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 768px) {
+    .hero { padding: 48px 0 32px; }
+    .hero-stats { grid-template-columns: 1fr; gap: 12px; }
+    .insight-grid { grid-template-columns: 1fr; }
+    section { padding: 40px 0; }
+    .chart-frame { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Hero ===== -->
+<header class="hero">
+  <div class="container">
+    <span class="hero-tag">NLP · 文本分析 · 作品集项目</span>
+    <h1>YouTube 视频评论<br>爬虫与情感分析</h1>
+    <p class="hero-sub">
+      自动化抓取 YouTube 视频评论，结合中文分词、词云可视化、情感分析与 BERTopic 主题建模，
+      深度洞察观众对内容的真实看法与讨论焦点。
+    </p>
+    <a href="https://www.youtube.com/watch?v=vW9Sw7E7M2o" target="_blank" class="video-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      查看原视频
+    </a>
+    <div class="tags">
+      <span class="tag">Python</span>
+      <span class="tag">YouTube Data API</span>
+      <span class="tag">Jieba 分词</span>
+      <span class="tag">WordCloud 词云</span>
+      <span class="tag">BERTopic</span>
+      <span class="tag">情感分析</span>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-number">50+</div>
+        <div class="stat-label">抓取评论数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">2</div>
+        <div class="stat-label">识别主题数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">3</div>
+        <div class="stat-label">情感分类</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== 项目背景 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">01 — 项目背景</div>
+    <h2>为什么做这个分析？</h2>
+    <p>
+      YouTube 评论区是观众表达观点最直接的场域。通过自动化抓取和文本分析，
+      我们可以从海量评论中提取<strong>高频关键词</strong>、判断<strong>情感倾向</strong>，
+      并自动识别<strong>讨论主题</strong>，帮助内容创作者和品牌方快速了解观众在关心什么。
+    </p>
+    <p>
+      本项目以某期名人访谈视频为例，完整走通了从数据采集到可视化分析的全流程。
+    </p>
+  </div>
+</section>
+
+<!-- ===== 技术流程 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">02 — 技术流程</div>
+    <h2>分析管线</h2>
+    <p>整个项目分为四个核心步骤：</p>
+    <div class="insight-grid">
+      <div class="insight-card">
+        <h3>1. 数据采集</h3>
+        <p>使用 YouTube Data API 批量抓取目标视频的全部公开评论，保存为结构化数据。</p>
+      </div>
+      <div class="insight-card">
+        <h3>2. 中文分词</h3>
+        <p>使用 Jieba 对评论文本进行分词、去停用词，提取有意义的中文词汇。</p>
+      </div>
+      <div class="insight-card">
+        <h3>3. 可视化分析</h3>
+        <p>生成词云图展示高频词分布，用情感分析模型判断每条评论的正负面倾向。</p>
+      </div>
+      <div class="insight-card">
+        <h3>4. 主题建模</h3>
+        <p>使用 BERTopic 无监督聚类，自动发现评论中的核心讨论主题及其关联词汇。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 词云分析 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">03 — 词云分析</div>
+    <h2>观众在讨论什么？</h2>
+    <p>
+      词云图直观展示了评论中出现频率最高的词汇。<strong>「關穎」</strong>作为核心人物被提及最多，
+      其次是<strong>「理科」「太太」「媽媽」「人生」「性格」「智慧」</strong>等关键词，
+      反映出观众的讨论焦点集中在人物背景、家庭关系与个人特质上。
+    </p>
+    <div class="chart-frame">
+      <img src="assets/wordcloud.png" alt="中文词云图">
+      <div class="chart-caption">图 1 — 评论高频词云（字号越大表示出现频率越高）</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 情感分析 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">04 — 情感分析</div>
+    <h2>观众感受如何？</h2>
+    <p>
+      对每条评论进行情感极性判断，分为<strong>正面、中性、负面</strong>三类。
+      结果显示正面评论占比最高，说明整体观众对视频内容持认可态度。
+    </p>
+    <div class="chart-frame">
+      <div id="sentimentChart"></div>
+      <div class="chart-caption">图 2 — 评论情感分布（正面 26 条 / 中性 8 条 / 負面 16 条）</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 主题建模 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">05 — 主题建模</div>
+    <h2>讨论可以分成几个主题？</h2>
+    <p>
+      通过 BERTopic 无监督学习，自动将评论聚类为<strong>两个主要主题</strong>。
+      右侧条形图展示了最具代表性的关键词及其在各主题中的频率，
+      帮助快速理解观众讨论的不同侧面。
+    </p>
+    <div class="chart-frame">
+      <img src="assets/bertopic.png" alt="BERTopic 主题建模可视化">
+      <div class="chart-caption">图 3 — BERTopic 主题距离图与 Top 30 关键词</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 项目成果 ===== -->
+<section>
+  <div class="container">
+    <div class="section-number">06 — 项目总结</div>
+    <h2>这个项目证明了什么？</h2>
+    <div class="insight-grid">
+      <div class="insight-card">
+        <h3>数据驱动的观众洞察</h3>
+        <p>自动化文本分析可以从非结构化的评论中提炼出清晰的话题焦点和情感倾向，比人工阅读效率高得多。</p>
+      </div>
+      <div class="insight-card">
+        <h3>完整的 NLP 流程</h3>
+        <p>从 API 抓取 → 中文分词 → 词云可视化 → 情感分析 → 主题建模，覆盖了文本分析的核心环节。</p>
+      </div>
+      <div class="insight-card">
+        <h3>可复用的分析模板</h3>
+        <p>这套管线可以快速迁移到其他视频、其他频道，用于持续追踪观众反馈变化。</p>
+      </div>
+      <div class="insight-card">
+        <h3>商业应用价值</h3>
+        <p>可用于内容策划、舆情监控、竞品分析等场景，帮助团队用数据指导创作决策。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Python · YouTube Data API · Jieba · BERTopic · WordCloud</p>
+  </div>
+</footer>
+
+<script>
+const chart = echarts.init(document.getElementById('sentimentChart'));
+const option = {
+  backgroundColor: 'transparent',
+  tooltip: {
+    trigger: 'item',
+    backgroundColor: '#161B22',
+    borderColor: '#30363D',
+    textStyle: { color: '#E6EDF3' }
+  },
+  legend: {
+    bottom: 0,
+    textStyle: { color: '#8B949E', fontSize: 13 },
+    itemWidth: 12,
+    itemHeight: 12
+  },
+  series: [{
+    type: 'pie',
+    radius: ['40%', '70%'],
+    center: ['50%', '45%'],
+    avoidLabelOverlap: true,
+    itemStyle: {
+      borderRadius: 6,
+      borderColor: '#0D1117',
+      borderWidth: 3
+    },
+    label: {
+      show: true,
+      color: '#E6EDF3',
+      fontSize: 14,
+      formatter: '{b}\n{c} 条 ({d}%)'
+    },
+    data: [
+      { value: 26, name: '正面', itemStyle: { color: '#3FB950' } },
+      { value: 8, name: '中性', itemStyle: { color: '#D29922' } },
+      { value: 16, name: '负面', itemStyle: { color: '#F85149' } }
+    ]
+  }]
+};
+chart.setOption(option);
+window.addEventListener('resize', () => chart.resize());
+</script>
+
+</body>
+</html>
